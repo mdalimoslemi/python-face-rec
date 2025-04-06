@@ -8,6 +8,8 @@ from flask_wtf import FlaskForm
 import os
 import cv2
 import numpy as np
+import logging
+from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
@@ -46,6 +48,12 @@ limiter = Limiter(
 # Create folders if they don't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['PROCESSED_FOLDER'], exist_ok=True)
+
+# Configure logging
+if not app.debug:
+    handler = RotatingFileHandler('error.log', maxBytes=10000, backupCount=1)
+    handler.setLevel(logging.ERROR)
+    app.logger.addHandler(handler)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -142,6 +150,16 @@ def too_large(e):
 @app.errorhandler(429)
 def ratelimit_handler(e):
     return "Too many requests. Please try again later.", 429
+
+@app.errorhandler(500)
+def internal_error(e):
+    app.logger.error(f"Server Error: {e}, Path: {request.path}")
+    return "Internal Server Error", 500
+
+@app.errorhandler(Exception)
+def unhandled_exception(e):
+    app.logger.error(f"Unhandled Exception: {e}, Path: {request.path}")
+    return "Something went wrong", 500
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000)
