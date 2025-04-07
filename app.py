@@ -9,6 +9,8 @@ import numpy as np
 import logging
 from logging.handlers import RotatingFileHandler
 from PIL import Image  # Add this import for image resizing
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
@@ -35,6 +37,13 @@ talisman = Talisman(
         'font-src': "'self' fonts.gstatic.com",
     },
     force_https=True  # Remove in development if needed
+)
+
+# Initialize rate limiting
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"]  # Adjust limits as needed
 )
 
 # Create folders if they don't exist
@@ -93,6 +102,7 @@ class UploadForm(FlaskForm):
     pass
 
 @app.route('/', methods=['GET'])
+@limiter.limit("10 per minute")  # Limit requests to the index page
 def index():
     form = UploadForm()
     return render_template('index.html', form=form)
@@ -103,6 +113,7 @@ def favicon():
     return send_file('static/favicon.ico')
 
 @app.route('/upload', methods=['POST'])
+@limiter.limit("5 per minute")  # Limit file uploads
 def upload_file():
     form = UploadForm()
     if not form.validate_on_submit():
@@ -147,7 +158,7 @@ def upload_file():
 # Error handlers
 @app.errorhandler(413)
 def too_large(e):
-    return "File is too large", 413
+    return "File is too large. Maximum size is 16MB.", 413
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
@@ -156,12 +167,12 @@ def ratelimit_handler(e):
 @app.errorhandler(500)
 def internal_error(e):
     app.logger.error(f"Server Error: {e}, Path: {request.path}")
-    return "Internal Server Error", 500
+    return "An unexpected error occurred. Please try again later.", 500
 
 @app.errorhandler(Exception)
 def unhandled_exception(e):
     app.logger.error(f"Unhandled Exception: {e}, Path: {request.path}")
-    return "Something went wrong", 500
+    return "An unexpected error occurred. Please try again later.", 500
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000)
