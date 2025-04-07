@@ -18,7 +18,9 @@ app.config['PROCESSED_FOLDER'] = 'static/processed'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 
 # Security Configurations
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'fallback-secret-key')  # Replace 'fallback-secret-key' with a placeholder
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+if not app.config['SECRET_KEY']:
+    raise RuntimeError("SECRET_KEY environment variable is not set!")
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
