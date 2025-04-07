@@ -3,12 +3,12 @@ from flask_wtf.csrf import CSRFProtect
 from flask_talisman import Talisman
 from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
-from redis import Redis
 import os
 import cv2
 import numpy as np
 import logging
 from logging.handlers import RotatingFileHandler
+from PIL import Image  # Add this import for image resizing
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
@@ -36,10 +36,6 @@ talisman = Talisman(
     },
     force_https=True  # Remove in development if needed
 )
-
-# Configure Redis
-redis_url = os.getenv('REDIS_URL')  # Render provides REDIS_URL as an environment variable
-redis = Redis.from_url(redis_url)
 
 # Create folders if they don't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -87,6 +83,12 @@ def detect_faces(image_path):
     
     return image, valid_faces
 
+def resize_image(image_path, max_width=1024, max_height=1024):
+    """Resize the image to reduce memory usage."""
+    with Image.open(image_path) as img:
+        img.thumbnail((max_width, max_height))
+        img.save(image_path)
+
 class UploadForm(FlaskForm):
     pass
 
@@ -94,6 +96,11 @@ class UploadForm(FlaskForm):
 def index():
     form = UploadForm()
     return render_template('index.html', form=form)
+
+@app.route('/favicon.ico')
+def favicon():
+    """Serve a placeholder favicon."""
+    return send_file('static/favicon.ico')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -114,6 +121,7 @@ def upload_file():
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         try:
             file.save(file_path)
+            resize_image(file_path)  # Resize the image before processing
         except Exception as e:
             return render_template('index.html', form=form, message=f'Error saving file: {str(e)}')
         
