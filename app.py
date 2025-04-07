@@ -2,9 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, send_file,
 from flask_wtf.csrf import CSRFProtect
 from flask_talisman import Talisman
 from werkzeug.utils import secure_filename
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask_wtf import FlaskForm
+from redis import Redis
 import os
 import cv2
 import numpy as np
@@ -38,12 +37,9 @@ talisman = Talisman(
     force_https=True  # Remove in development if needed
 )
 
-# Rate limiting
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
-)
+# Configure Redis
+redis_url = os.getenv('REDIS_URL')  # Render provides REDIS_URL as an environment variable
+redis = Redis.from_url(redis_url)
 
 # Create folders if they don't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -95,13 +91,11 @@ class UploadForm(FlaskForm):
     pass
 
 @app.route('/', methods=['GET'])
-@limiter.limit("10 per minute")
 def index():
     form = UploadForm()
     return render_template('index.html', form=form)
 
 @app.route('/upload', methods=['POST'])
-@limiter.limit("5 per minute")
 def upload_file():
     form = UploadForm()
     if not form.validate_on_submit():
